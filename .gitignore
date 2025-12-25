@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+
+# Project specific
+uploads/
+output/
+temp/
+*.gcode
+*.stl
+*.3mf
+
+# PrusaSlicer
+prusaslicer/
+prusaslicer.AppImage
+download-prusaslicer.ps1
+
+# Docker
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
