@@ -64,7 +64,12 @@ async def download_file(url) -> Tuple[bool, str]:
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "3D Printing Quotation Engine API", "version": "1.0"}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for AWS load balancers"""
+    return {"status": "healthy", "service": "quotation-engine"}
 
 @app.post("/quote/")
 async def generate_quote(quotation_request: QuotationRequest):

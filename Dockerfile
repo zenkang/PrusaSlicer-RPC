@@ -29,10 +29,19 @@ ENV LD_LIBRARY_PATH="/opt/prusaslicer/lib"
 
 # ---------- App setup ----------
 WORKDIR /app
-COPY . /app
 
+# Copy requirements first for better caching
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir git+https://github.com/ChristophSchranz/Tweaker-3.git
 
+# Copy application code
+COPY . /app
+
+# Create necessary directories
+RUN mkdir -p temp
+
 # ---------- Run API ----------
+EXPOSE 80
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+#CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80", "--workers", "2"]

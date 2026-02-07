@@ -26,7 +26,7 @@ CONFIG = {
     },
     "printing": {
         "timeout": 300,  # 5 minutes max processing time
-        "supported_formats": [".stl", ".STL", ".STEP", ".step", ".stp", ".STP"],
+        "supported_formats": [".stl", ".STL", ".STEP", ".step", ".stp", ".STP", ".obj", ".OBJ", ".3mf", ".3MF"],
         "default_layer_height": 0.2,
         "default_infill": 15
     },
@@ -106,7 +106,7 @@ class QuotationEngine:
     
     def check_mesh_validity(self, stl_file: str) -> Tuple[bool, str]:
         """
-        Check if STL mesh is valid (watertight, consistent winding, positive volume)
+        Check if STL mesh is valid (watertight, consistent winding, positive volume, dimensions)
         Returns: (is_valid, message)
         """
         # print(f"🔍 Checking mesh validity...")
@@ -114,6 +114,15 @@ class QuotationEngine:
         try:
             mesh = trimesh.load_mesh(stl_file)
             
+            # Check dimensions (600mm x 600mm x 600mm max build volume)
+            bounds = mesh.bounds  # Returns [[min_x, min_y, min_z], [max_x, max_y, max_z]]
+            dimensions = bounds[1] - bounds[0]  # [width, depth, height]
+            max_dimension = 500.0
+            
+            if any(dim > max_dimension for dim in dimensions):
+                return False, f"Model too large: {dimensions[0]:.1f}mm × {dimensions[1]:.1f}mm × {dimensions[2]:.1f}mm. Max: {max_dimension}mm × {max_dimension}mm × {max_dimension}mm"
+            
+            # Check mesh quality
             is_winding_consistent = mesh.is_winding_consistent
             is_watertight = mesh.is_watertight
             has_volume = mesh.volume > 0
@@ -274,7 +283,7 @@ class QuotationEngine:
             return {"error": error_msg}
     
     def parse_gcode(self, gcode_path: str, material: str, layer_height: float, infill: int) -> Dict:
-        """Extract detailed information from generated G-code"""
+        """Extract detailed information from generated G-code (reads last 500 lines for efficiency)"""
         data = {
             "print_time": None,
             "print_time_seconds": 0,
@@ -288,7 +297,17 @@ class QuotationEngine:
         }
         
         try:
-            with open(gcode_path, "r") as f:
+            # Read only the last 500 lines where metadata is located (more efficient for large files)
+            with open(gcode_path, "r", encoding='utf-8', errors='replace') as f:
+                # Get file size and position to read last ~500 lines
+                f.seek(0, 2)  # Go to end of file
+                file_size = f.tell()
+                
+                # Estimate bytes per line (~100 chars average) and read more to ensure we get 500+ lines
+                bytes_to_read = min(file_size, 80000)  # Read ~80KB from end (should cover 500+ lines)
+                f.seek(max(0, file_size - bytes_to_read))
+                
+                # Read and join the content
                 content = f.read()
                 
                 # Extract print time
@@ -299,27 +318,27 @@ class QuotationEngine:
                     data["print_time_seconds"] = self.parse_time_to_seconds(time_str)
                     data["print_time_hours"] = round(data["print_time_seconds"] / 3600, 2)
                 
-                # Extract filament usage
-                filament_match = re.search(r'; filament used \[mm\] = ([\d.]+)', content)
-                if filament_match:
-                    filament_mm = float(filament_match.group(1))
-                    data["filament_used_mm"] = filament_mm
-                    data["filament_used_grams"] = self.estimate_filament_weight(filament_mm, material)
+                # # Extract filament usage
+                # filament_match = re.search(r'; filament used \[mm\] = ([\d.]+)', content)
+                # if filament_match:
+                #     filament_mm = float(filament_match.group(1))
+                #     data["filament_used_mm"] = filament_mm
+                #     data["filament_used_grams"] = self.estimate_filament_weight(filament_mm, material)
                 
-                # Extract layer height from gcode if not set
-                if not layer_height:
-                    layer_match = re.search(r'; layer_height = ([\d.]+)', content)
-                    if layer_match:
-                        data["layer_height"] = float(layer_match.group(1))
+                # # Extract layer height from gcode if not set
+                # if not layer_height:
+                #     layer_match = re.search(r'; layer_height = ([\d.]+)', content)
+                #     if layer_match:
+                #         data["layer_height"] = float(layer_match.group(1))
                 
-                # Extract infill from gcode if not set
-                if not infill:
-                    infill_match = re.search(r'; fill_density = ([\d.]+)', content)
-                    if infill_match:
-                        data["infill_percentage"] = float(infill_match.group(1)) * 100
+                # # Extract infill from gcode if not set
+                # if not infill:
+                #     infill_match = re.search(r'; fill_density = ([\d.]+)', content)
+                #     if infill_match:
+                #         data["infill_percentage"] = float(infill_match.group(1)) * 100
                 
-                # Check for support material
-                data["support_material"] = "; support_material = 1" in content
+                # # Check for support material
+                # data["support_material"] = "; support_material = 1" in content
                 
         except Exception as e:
             print(f"⚠️ Warning: Could not parse G-code fully: {e}")
@@ -352,25 +371,6 @@ class QuotationEngine:
         
         return total_seconds
     
-    def estimate_filament_weight(self, filament_mm: float, material: str) -> float:
-        """Estimate filament weight in grams based on length and material"""
-        # Filament density (g/cm³) for 1.75mm diameter
-        density_map = {
-            "PLA": 1.24,
-            "PETG": 1.27, 
-            "ABS": 1.04,
-            "TPU": 1.20
-        }
-        
-        density = density_map.get(material, 1.24)  # Default to PLA
-        
-        # Calculate volume: π * r² * length (r = 0.875mm for 1.75mm filament)
-        radius_cm = 0.0875  # 0.875mm = 0.0875cm
-        length_cm = filament_mm / 10  # mm to cm
-        volume_cm3 = math.pi * (radius_cm ** 2) * length_cm
-        
-        weight_grams = volume_cm3 * density
-        return round(weight_grams, 2)
     
     def round_price(self, price: float) -> float:
         """
@@ -492,7 +492,7 @@ class QuotationEngine:
         
         # Step 1: Check if STEP/STP file and convert to STL
         file_ext = os.path.splitext(input_file)[1].lower()
-        if file_ext in [".step", ".stp"]:
+        if file_ext not in [".stl", ".STL"]:
             stl_file, convert_msg = self.convert_step_to_stl(input_file, job_id)
             if stl_file is None:
                 return {
