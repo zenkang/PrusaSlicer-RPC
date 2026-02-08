@@ -1,6 +1,6 @@
 """
 3D Printing Quotation Engine API
-Advanced quotation system with STEP/STL conversion, mesh validation, smart orientation, slicing, and cost calculation
+Quotation engine with STEP/STL conversion, mesh validation, smart orientation, slicing, and cost calculation
 Compatible with Next.js web applications through REST API
 """
 
@@ -15,7 +15,6 @@ from datetime import datetime
 import math
 from typing import Dict, Optional, Tuple, Any
 import trimesh
-from look import look
 
 # === CONFIGURATION ===
 CONFIG = {
@@ -197,6 +196,49 @@ class QuotationEngine:
             # print(f"⚠️ {error_msg}, using original orientation")
             return stl_file, f"Orientation error, using original", orientation_data
     
+    def get_config_file(self, layer_height: float, infill: int) -> str:
+        """
+        Generate a config file with the specified layer height and infill percentage.
+        Reads a base config file and modifies the fill_density value dynamically.
+        Returns: path to temporary config file
+        """
+        # Select base config based on layer height
+        # base_configs = {
+        #     0.2: "default_0.2_15.ini",
+        # }
+        
+        # base_config = base_configs.get(layer_height, "cfg.ini")
+        base_config = "cfg.ini"
+        
+        # Read the base config file
+        with open(base_config, 'r') as f:
+            content = f.read()
+        
+        # Modify the fill_density line
+        content = re.sub(
+            r'^fill_density = \d+%',
+            f'fill_density = {infill}%',
+            content,
+            flags=re.MULTILINE
+        )
+        
+        # Modify fill_pattern to rectilinear when infill is 100%
+        if infill == 100:
+            content = re.sub(
+                r'^fill_pattern = \w+',
+                'fill_pattern = rectilinear',
+                content,
+                flags=re.MULTILINE
+            )
+        
+        # Write to a temporary config file
+        output_file = os.path.join("temp", f"config_{layer_height}_{infill}.ini")
+        os.makedirs("temp", exist_ok=True)
+        with open(output_file, 'w') as f:
+            f.write(content)
+        
+        return output_file
+    
     def parse_tweaker3_complexity(self, tweaker_output: str) -> str:
         """
         Parse Tweaker3 output to determine model complexity
@@ -244,7 +286,7 @@ class QuotationEngine:
         print(f"🔪 Slicing model (material: {material}, layer: {layer_height}mm, infill: {infill}%)")
         
         gcode_path = os.path.join("temp", f"{job_id}.gcode")
-        config_file = look(layer_height, infill)
+        config_file = self.get_config_file(layer_height, infill)
         
         cmd = [
             self.config["paths"]["prusaslicer"],
@@ -273,13 +315,22 @@ class QuotationEngine:
             # Parse G-code for printing information
             slicing_data = self.parse_gcode(gcode_path, material, layer_height, infill)
             print(f"✅ Slicing completed - {slicing_data.get('print_time', 'Unknown')} estimated")
-            shutil.os.remove(gcode_path)  # Clean up intermediate STL file
+            shutil.os.remove(gcode_path)  # Clean up gcode file
+            
+            # Clean up temporary config file
+            if os.path.exists(config_file):
+                os.remove(config_file)
             
             return slicing_data
             
         except Exception as e:
             error_msg = f"Slicing error: {str(e)}"
             # print(f"❌ {error_msg}")
+            
+            # Clean up temporary config file even on error
+            if os.path.exists(config_file):
+                os.remove(config_file)
+            
             return {"error": error_msg}
     
     def parse_gcode(self, gcode_path: str, material: str, layer_height: float, infill: int) -> Dict:
@@ -287,13 +338,13 @@ class QuotationEngine:
         data = {
             "print_time": None,
             "print_time_seconds": 0,
-            "print_time_hours": 0,
-            "filament_used_mm": 0,
-            "filament_used_grams": 0,
-            "material": material,
-            "layer_height": layer_height,
-            "infill_percentage": infill,
-            "support_material": False
+            "print_time_hours": 0
+            # "filament_used_mm": 0,
+            # "filament_used_grams": 0,
+            # "material": material,
+            # "layer_height": layer_height,
+            # "infill_percentage": infill,
+            # "support_material": False
         }
         
         try:
@@ -461,7 +512,7 @@ class QuotationEngine:
     
     def generate_quotation(self, input_file: str, material: str = "PLA", 
                           layer_height: float = 0.2, infill: int = 15,
-                          rush_order: bool = False) -> Dict:
+                          rush_order: bool = False, job_id: str = None) -> Dict:
         """
         Generate complete quotation with STEP conversion, mesh validation, orientation, slicing, and pricing
         Main entry point for the quotation engine
@@ -473,7 +524,8 @@ class QuotationEngine:
         4. Slice with specified parameters (layer height, infill)
         5. Calculate price using simplified formula
         """
-        job_id = str(uuid.uuid4())
+        if job_id is None:
+            job_id = str(uuid.uuid4())
         
         print(f"🚀 Starting quotation generation for job {job_id}")
         print(f"📁 Input file: {input_file}")
@@ -549,27 +601,27 @@ class QuotationEngine:
             "timestamp": datetime.now().isoformat(),
             
             # File information
-            "files": {
-                "original_file": os.path.basename(input_file),
-                "conversion_performed": conversion_performed,
-                "stl_file": os.path.basename(stl_file) if conversion_performed else None,
-                "oriented_model": os.path.basename(oriented_stl)
-            },
+            # "files": {
+            #     "original_file": os.path.basename(input_file),
+            #     "conversion_performed": conversion_performed,
+            #     "stl_file": os.path.basename(stl_file) if conversion_performed else None,
+            #     "oriented_model": os.path.basename(oriented_stl)
+            # },
             
             # Processing results
-            "processing": {
-                "mesh_valid": mesh_valid,
-                "mesh_message": mesh_msg,
-                "orientation_message": orient_msg,
-                "complexity": complexity,
-                "orientation_data": orientation_data
-            },
+            # "processing": {
+            #     "mesh_valid": mesh_valid,
+            #     "mesh_message": mesh_msg,
+            #     "orientation_message": orient_msg,
+            #     "complexity": complexity,
+            #     "orientation_data": orientation_data
+            # },
             
             # Slicing results
-            "slicing": slicing_data,
+            # "slicing": slicing_data,
             
             # Pricing breakdown
-            "pricing": pricing_data,
+            # "pricing": pricing_data,
             
             # Summary
             "summary": {
@@ -577,8 +629,9 @@ class QuotationEngine:
                 "layer_height": layer_height,
                 "infill_percentage": infill,
                 "print_time": slicing_data.get("print_time", "Unknown"),
+                "complexity": complexity,
                 "total_cost": pricing_data["total"],
-                "estimated_delivery": "2-3 business days" if not rush_order else "24-48 hours"
+                "Expedite": rush_order
             }
         }
         

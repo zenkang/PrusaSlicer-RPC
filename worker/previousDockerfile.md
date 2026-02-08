@@ -42,6 +42,9 @@ COPY . /app
 RUN mkdir -p temp
 
 # ---------- Run API ----------
-EXPOSE 80
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+# EXPOSE 80
+# CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
 #CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80", "--workers", "2"]
+
+# ADD: Run the worker script by default
+CMD ["python", "-u", "worker.py"]

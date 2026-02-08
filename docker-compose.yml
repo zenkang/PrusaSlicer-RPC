@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 1. The Message Broker
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # 2. The API Gateway (Go)
+  api:
+    build: ./go-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+
+  # 3. The Worker (Python)
+  worker:
+    build: ./worker
+    # platform: linux/amd64
+    command: python -u worker.py  # -u for unbuffered logs
+    deploy:
+      replicas: 2                 # Start 2 workers immediately
+    # volumes:
+    #   - ./temp_debug:/app/temp    # Optional: to see files processing
+    environment:
+      - REDIS_HOST=redis
+    depends_on:
+      - redis
