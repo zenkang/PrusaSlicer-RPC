@@ -7,9 +7,11 @@ import (
     "os"
     "time"
     _ "embed"
-    "fmt"
+    "strings"
     "strconv"
 	"io"
+    "bytes"
+    "mime/multipart"
 
     "github.com/gin-gonic/gin"
     "github.com/go-redis/redis/v8"
@@ -18,6 +20,9 @@ import (
 
 //go:embed index.html
 var indexHTML []byte // variable for html file
+
+//go:embed system-architecture-diagram.jpg
+var diagramImg []byte
 
 // Define the data user sends 
 type QuotationRequest struct {
@@ -64,6 +69,11 @@ func main() {
     //serve frontend html
     r.GET("/", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	})
+
+    // Serve the Embedded Image
+	r.GET("/system-architecture-diagram.jpg", func(c *gin.Context) {
+		c.Data(http.StatusOK, "image/jpeg", diagramImg)
 	})
 
     // Endpoint 1: Submit Job
@@ -152,7 +162,7 @@ func main() {
 			infill = 15 // Fallback default
 		}
 
-		// --- PROXY UPLOAD TO TRANSFER.SH (More Reliable) ---
+// --- PROXY UPLOAD TO TMPFILES.ORG ---
 		file, err := fileHeader.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
@@ -160,42 +170,52 @@ func main() {
 		}
 		defer file.Close()
 
-		// transfer.sh uses PUT /{filename}
-		// We use the original filename to keep the extension correct
-		uploadURL := "https://transfer.sh/" + fileHeader.Filename
-		
-		req, _ := http.NewRequest("PUT", uploadURL, file)
-		
-		// Set content length if possible to help transfer.sh
-		req.ContentLength = fileHeader.Size
-		req.Header.Set("Content-Type", "application/octet-stream")
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, _ := writer.CreateFormFile("file", fileHeader.Filename)
+		io.Copy(part, file)
+		writer.Close()
 
-		client := &http.Client{Timeout: 120 * time.Second} // 2 mins for larger uploads
+		// API Endpoint
+		req, _ := http.NewRequest("POST", "https://tmpfiles.org/api/v1/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+
+		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to connect to storage: " + err.Error()})
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Storage connection failed: " + err.Error()})
 			return
 		}
 		defer resp.Body.Close()
 
-		// transfer.sh returns the URL as plain text in the body
-		responseBody, _ := io.ReadAll(resp.Body)
-		downloadLink := string(responseBody)
-
-		if resp.StatusCode != 200 || downloadLink == "" {
-			// Log the actual error from the provider for debugging
-			fmt.Printf("Storage Error: Status %d, Body: %s\n", resp.StatusCode, downloadLink)
-			c.JSON(http.StatusBadGateway, gin.H{"error": "Storage provider rejected file"})
-			return
+		// Parse Response
+		var tmpResp struct {
+			Status string `json:"status"`
+			Data   struct {
+				URL string `json:"url"`
+			} `json:"data"`
 		}
 		
-		// ----------------------------------------------------
+		if err := json.NewDecoder(resp.Body).Decode(&tmpResp); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Invalid response from storage"})
+			return
+		}
+
+		if tmpResp.Status != "success" {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Storage rejected file"})
+			return
+		}
+
+		// CRITICAL: Convert Viewer URL to Download URL
+		// Viewer:   https://tmpfiles.org/12345/file.stl
+		// Download: https://tmpfiles.org/dl/12345/file.stl
+		downloadURL := strings.Replace(tmpResp.Data.URL, "tmpfiles.org/", "tmpfiles.org/dl/", 1)
 
 		// 3. Queue Job 
 		jobID := uuid.New().String()
 		jobData := map[string]interface{}{
 			"id":           jobID,
-			"download_url": downloadLink, // Now using transfer.sh link
+			"download_url": downloadURL, // Now using transfer.sh link
 			"material":     material,
 			"infill":       infill,
 		}
