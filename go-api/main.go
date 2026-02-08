@@ -7,10 +7,9 @@ import (
     "os"
     "time"
     _ "embed"
-    "bytes"
+    "fmt"
     "strconv"
 	"io"
-	"mime/multipart"
 
     "github.com/gin-gonic/gin"
     "github.com/go-redis/redis/v8"
@@ -153,8 +152,7 @@ func main() {
 			infill = 15 // Fallback default
 		}
 
-		// --- PROXY UPLOAD TO FILE.IO ---
-		//stream the file to file.io so don't use up Render's RAM
+		// --- PROXY UPLOAD TO TRANSFER.SH (More Reliable) ---
 		file, err := fileHeader.Open()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
@@ -162,43 +160,44 @@ func main() {
 		}
 		defer file.Close()
 
-		// Prepare request to file.io
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-		part, _ := writer.CreateFormFile("file", fileHeader.Filename)
-		io.Copy(part, file) // Copy stream
-		writer.Close()
+		// transfer.sh uses PUT /{filename}
+		// We use the original filename to keep the extension correct
+		uploadURL := "https://transfer.sh/" + fileHeader.Filename
+		
+		req, _ := http.NewRequest("PUT", uploadURL, file)
+		
+		// Set content length if possible to help transfer.sh
+		req.ContentLength = fileHeader.Size
+		req.Header.Set("Content-Type", "application/octet-stream")
 
-		req, _ := http.NewRequest("POST", "https://file.io/?expires=1d", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-
-		client := &http.Client{Timeout: 60 * time.Second}
+		client := &http.Client{Timeout: 120 * time.Second} // 2 mins for larger uploads
 		resp, err := client.Do(req)
-		if err != nil || resp.StatusCode != 200 {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to upload to intermediate storage"})
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to connect to storage: " + err.Error()})
 			return
 		}
 		defer resp.Body.Close()
 
-		// Parse file.io response to get the URL
-		var fileIoResp struct {
-			Success bool   `json:"success"`
-			Link    string `json:"link"`
-		}
-		json.NewDecoder(resp.Body).Decode(&fileIoResp)
+		// transfer.sh returns the URL as plain text in the body
+		responseBody, _ := io.ReadAll(resp.Body)
+		downloadLink := string(responseBody)
 
-		if !fileIoResp.Success {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "Intermediate storage rejected file"})
+		if resp.StatusCode != 200 || downloadLink == "" {
+			// Log the actual error from the provider for debugging
+			fmt.Printf("Storage Error: Status %d, Body: %s\n", resp.StatusCode, downloadLink)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Storage provider rejected file"})
 			return
 		}
+		
+		// ----------------------------------------------------
 
 		// 3. Queue Job 
 		jobID := uuid.New().String()
 		jobData := map[string]interface{}{
 			"id":           jobID,
-			"download_url": fileIoResp.Link, 
+			"download_url": downloadLink, // Now using transfer.sh link
 			"material":     material,
-            "infill":       infill,
+			"infill":       infill,
 		}
 		jsonData, _ := json.Marshal(jobData)
 		rdb.RPush(ctx, "print_jobs", jsonData)
