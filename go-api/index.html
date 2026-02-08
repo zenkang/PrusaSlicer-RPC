@@ -18,6 +18,16 @@
         /* Card Styles */
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
         
+        /* Architecture Image Styling - FIX APPLIED HERE */
+        .responsive-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: block;
+            margin: 0 auto;
+        }
+        
         /* Form Elements */
         .form-group { margin-bottom: 1.5rem; }
         label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: #334155; }
@@ -63,8 +73,8 @@
                     <label for="material">Material</label>
                     <select id="material">
                         <option value="PLA">PLA (Standard)</option>
-                        <option value="PETG">PETG (Tough)</option>
-                        <option value="ABS">ABS (Stong)</option>
+                        <option value="PETG">PETG (Strong)</option>
+                        <option value="ASA">ASA (UV Resistant)</option>
                     </select>
                 </div>
 
@@ -88,7 +98,7 @@
             <h2>🛠️ System Architecture</h2>
             <p>This project demonstrates a <strong>stateless microservices architecture</strong> designed for high-throughput geometric processing.</p>
             <div style="text-align: center; margin: 2rem 0;">
-                <img src="./system-architecture-diagram.jpg" alt="System Architecture Diagram">
+                <img src="./system-architecture-diagram.jpg" alt="System Architecture Diagram" class="responsive-img">
             </div>
 
             <h2>📚 API Documentation</h2>
@@ -111,9 +121,10 @@ Content-Type: application/json
             <pre>{
   "status": "completed",
   "data": {
-    "total_cost": 4.52,
-    "used_filament_grams": 124.5,
-    "estimated_time_hours": 3.2
+    "summary": {
+      "total_cost": 4.52,
+      "print_time": "2h 30m"
+    }
   }
 }</pre>
         </div>
@@ -160,20 +171,23 @@ Content-Type: application/json
                             submitBtn.innerText = "Get Another Quote";
                             statusText.innerHTML = `✅ <b>Success!</b> Quotation ready.`;
                             
+                            // --- FIX: Access data from 'summary' object ---
+                            const summary = result.data.summary;
+                            
                             // Render Stats
                             resultData.style.display = 'grid';
                             resultData.innerHTML = `
                                 <div class="stat-item">
                                     <span class="stat-label">Est. Cost</span>
-                                    <div class="stat-val">$${result.data.total_cost.toFixed(2)}</div>
-                                </div>
-                                <div class="stat-item">
-                                    <span class="stat-label">Filament</span>
-                                    <div class="stat-val">${result.data.used_filament_grams.toFixed(1)}g</div>
+                                    <div class="stat-val">$${summary.total_cost.toFixed(2)}</div>
                                 </div>
                                 <div class="stat-item">
                                     <span class="stat-label">Print Time</span>
-                                    <div class="stat-val">${result.data.estimated_time_hours.toFixed(1)}h</div>
+                                    <div class="stat-val">${summary.print_time}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Material</span>
+                                    <div class="stat-val">${summary.material}</div>
                                 </div>
                             `;
                         } else if (result.status === 'failed') {
