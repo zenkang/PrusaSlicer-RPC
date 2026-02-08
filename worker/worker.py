@@ -9,8 +9,18 @@ import uuid
 from quotation_engine import QuotationEngine
 
 # Configuration
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-r = redis.Redis(host=REDIS_HOST, port=6379, db=0)
+# REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+# r = redis.Redis(host=REDIS_HOST, port=6379, db=0)
+
+# NEW: Cloud URL Support
+REDIS_URL = os.getenv("REDIS_URL")
+
+if REDIS_URL:
+    # Handles password, SSL, and port automatically
+    r = redis.from_url(REDIS_URL)
+else:
+    # Local fallback
+    r = redis.Redis(host="localhost", port=6379, db=0)
 
 # Helper: Reimplementing the download logic from your old app.py
 def download_file(url):

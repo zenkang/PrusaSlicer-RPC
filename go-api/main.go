@@ -25,11 +25,29 @@ var ctx = context.Background()
 
 func main() {
     // Connect to Redis
-    redisAddr := os.Getenv("REDIS_ADDR")
-    if redisAddr == "" {
-        redisAddr = "localhost:6379"
+    // redisAddr := os.Getenv("REDIS_ADDR")
+    // if redisAddr == "" {
+    //     redisAddr = "localhost:6379"
+    // }
+    // rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+
+    // Cloud URL Support (Supports Upstash/Render/AWS)
+    redisURL := os.Getenv("REDIS_URL")
+    var opts *redis.Options
+    var err error
+
+    if redisURL != "" {
+        // Parse the full URL (rediss://user:pass@host:port)
+        opts, err = redis.ParseURL(redisURL)
+        if err != nil {
+            panic("Invalid REDIS_URL: " + err.Error())
+        }
+    } else {
+        // Fallback for local testing
+        opts = &redis.Options{Addr: "localhost:6379"}
     }
-    rdb := redis.NewClient(&redis.Options{Addr: redisAddr})
+    
+    rdb := redis.NewClient(opts)
 
     r := gin.Default()
 
