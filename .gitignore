@@ -47,6 +47,9 @@ temp/
 *.gcode
 *.stl
 *.3mf
+worker/worker_old.py
+worker/old_fastapi_dockerfile.md
+worker/dockerfile_old.md
 
 # PrusaSlicer
 prusaslicer/
