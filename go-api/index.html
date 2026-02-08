@@ -18,7 +18,7 @@
         /* Card Styles */
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
         
-        /* Architecture Image Styling - FIX APPLIED HERE */
+        /* Architecture Image Styling */
         .responsive-img {
             max-width: 100%;
             height: auto;
@@ -73,8 +73,8 @@
                     <label for="material">Material</label>
                     <select id="material">
                         <option value="PLA">PLA (Standard)</option>
-                        <option value="PETG">PETG (Strong)</option>
-                        <option value="ASA">ASA (UV Resistant)</option>
+                        <option value="PETG">PETG (Tough)</option>
+                        <option value="ABS">ABS (Strong)</option>
                     </select>
                 </div>
 
@@ -171,7 +171,6 @@ Content-Type: application/json
                             submitBtn.innerText = "Get Another Quote";
                             statusText.innerHTML = `✅ <b>Success!</b> Quotation ready.`;
                             
-                            // --- FIX: Access data from 'summary' object ---
                             const summary = result.data.summary;
                             
                             // Render Stats
@@ -188,6 +187,10 @@ Content-Type: application/json
                                 <div class="stat-item">
                                     <span class="stat-label">Material</span>
                                     <div class="stat-val">${summary.material}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Complexity</span>
+                                    <div class="stat-val" style="text-transform: capitalize;">${summary.complexity}</div>
                                 </div>
                             `;
                         } else if (result.status === 'failed') {
