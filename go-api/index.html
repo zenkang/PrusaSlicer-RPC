@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed 3D Slicer Engine</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; margin: 0; padding: 0; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
+        
+        /* Hero Section */
+        header { text-align: center; margin-bottom: 3rem; }
+        h1 { margin: 0; font-size: 2.5rem; color: #0f172a; }
+        .subtitle { color: #64748b; font-size: 1.1rem; margin-top: 0.5rem; }
+        .badge { background: #dbeafe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.8rem; font-weight: bold; vertical-align: middle; }
+
+        /* Card Styles */
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 2rem; margin-bottom: 2rem; }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: #334155; }
+        input, select { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        /* Range Slider */
+        .range-container { display: flex; align-items: center; gap: 1rem; }
+        input[type=range] { flex-grow: 1; }
+        .range-value { font-weight: bold; min-width: 3rem; text-align: right; }
+
+        /* Status Box */
+        #status-box { display: none; margin-top: 1.5rem; padding: 1rem; border-radius: 8px; background: #f1f5f9; border-left: 4px solid var(--primary); }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .stat-item { background: white; padding: 0.8rem; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .stat-label { font-size: 0.8rem; color: #64748b; display: block; }
+        .stat-val { font-size: 1.2rem; font-weight: bold; color: #0f172a; }
+
+        /* Docs Section */
+        code { background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; font-size: 0.9em; color: #e11d48; }
+        pre { background: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem; }
+        h2 { border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Distributed 3D Slicer <span class="badge">v1.0</span></h1>
+            <p class="subtitle">Go API Gateway • Redis Queue • Python Geometric Worker</p>
+        </header>
+
+        <div class="card">
+            <h2>🚀 Live Demo</h2>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="fileInput">Upload STL File</label>
+                    <input type="file" id="fileInput" accept=".stl" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="material">Material</label>
+                    <select id="material">
+                        <option value="PLA">PLA (Standard)</option>
+                        <option value="PETG">PETG (Strong)</option>
+                        <option value="ASA">ASA (UV Resistant)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Infill Percentage: <span id="infillVal" class="range-value">15%</span></label>
+                    <div class="range-container">
+                        <input type="range" id="infill" min="5" max="100" value="15" oninput="document.getElementById('infillVal').innerText = this.value + '%'">
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn">Get Instant Quote</button>
+            </form>
+
+            <div id="status-box">
+                <div id="status-text"></div>
+                <div id="result-data" class="result-grid" style="display:none"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ System Architecture</h2>
+            <p>This project demonstrates a <strong>stateless microservices architecture</strong> designed for high-throughput geometric processing.</p>
+            <div style="text-align: center; margin: 2rem 0;">
+                <img src="https://mermaid.ink/img/pako:eNpVkMtqwzAQRX9FzCqF_IAdCqWbQjal224KwayRRxJbQo9KDCb_Xsk2hUIf6N6Zc-6M1IwypQYaeO-hW8EKeVfaC881fFipwS_3sN_vYbfbwx8338K50Z0D7-F4u4z0eD7_iA7qQ2W1whV1j8qj8QY6qO-V8rA45aR9y1l7l_P2S07aW95303T8Edo69C44E8W-t62hQ_P4CxqX85g6S8-Ys_TMOUtPmbP0zDlLj8w5S8_K_7P0zF4oQ2e0vW1dJ7R1t-1fJ_gD7eRY9g" alt="System Architecture Diagram">
+            </div>
+
+            <h2>📚 API Documentation</h2>
+            <p>You can interact with the engine programmatically using the JSON API.</p>
+
+            <h3>1. Submit Job (JSON)</h3>
+            <pre>POST /quote
+Content-Type: application/json
+
+{
+  "download_url": "https://example.com/file.stl",
+  "material": "PLA",
+  "infill": 20,
+  "layer_height": 0.2
+}</pre>
+
+            <h3>2. Check Status</h3>
+            <pre>GET /status/:job_id</pre>
+            <p>Returns:</p>
+            <pre>{
+  "status": "completed",
+  "data": {
+    "total_cost": 4.52,
+    "used_filament_grams": 124.5,
+    "estimated_time_hours": 3.2
+  }
+}</pre>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusBox = document.getElementById('status-box');
+        const statusText = document.getElementById('status-text');
+        const resultData = document.getElementById('result-data');
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Uploading...";
+            statusBox.style.display = 'block';
+            statusText.innerHTML = '⏳ <b>Step 1/2:</b> Uploading file...';
+            resultData.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', document.getElementById('fileInput').files[0]);
+            formData.append('material', document.getElementById('material').value);
+            formData.append('infill', document.getElementById('infill').value);
+
+            try {
+                // 1. Upload
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                
+                statusText.innerHTML = `⚙️ <b>Step 2/2:</b> Slicing model (Job: ${data.job_id.slice(0,8)})...`;
+
+                // 2. Poll
+                const poll = setInterval(async () => {
+                    try {
+                        const check = await fetch(`/status/${data.job_id}`);
+                        const result = await check.json();
+                        
+                        if (result.status === 'completed') {
+                            clearInterval(poll);
+                            submitBtn.disabled = false;
+                            submitBtn.innerText = "Get Another Quote";
+                            statusText.innerHTML = `✅ <b>Success!</b> Quotation ready.`;
+                            
+                            // Render Stats
+                            resultData.style.display = 'grid';
+                            resultData.innerHTML = `
+                                <div class="stat-item">
+                                    <span class="stat-label">Est. Cost</span>
+                                    <div class="stat-val">$${result.data.total_cost.toFixed(2)}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Filament</span>
+                                    <div class="stat-val">${result.data.used_filament_grams.toFixed(1)}g</div>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Print Time</span>
+                                    <div class="stat-val">${result.data.estimated_time_hours.toFixed(1)}h</div>
+                                </div>
+                            `;
+                        } else if (result.status === 'failed') {
+                            clearInterval(poll);
+                            throw new Error(result.data?.error || "Worker failed");
+                        }
+                    } catch (e) {
+                        clearInterval(poll);
+                        throw e;
+                    }
+                }, 2000);
+
+            } catch (err) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Get Quote";
+                statusText.innerHTML = `<span style="color:red">❌ Error: ${err.message}</span>`;
+            }
+        };
+    </script>
+</body>
+</html>
