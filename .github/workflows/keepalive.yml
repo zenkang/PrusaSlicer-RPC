@@ -1,0 +1,16 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Run every 14 minutes (Render sleeps after 15 mins)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows you to run it manually from GitHub UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render App
+        run: |
+          # Replace with your ACTUAL Render URL
+          curl -I https://prusaslicer-rpc.onrender.com
