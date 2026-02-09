@@ -90,7 +90,7 @@
             <form id="uploadForm">
                 <div class="form-group">
                     <label for="fileInput">Upload STL File</label>
-                    <input type="file" id="fileInput" accept=".stl" required>
+                    <input type="file" id="fileInput" accept=".stl, .stp, .step, .obj, .3mf" required>
                 </div>
                 
                 <div class="form-group">
@@ -161,6 +161,14 @@ Content-Type: application/json
         const statusText = document.getElementById('status-text');
         const resultData = document.getElementById('result-data');
 
+        // Helper to update UI on error
+        const showError = (msg) => {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Get Quote";
+            statusText.innerHTML = `<span style="color:red">❌ Error: ${msg}</span>`;
+            console.error(msg);
+        };
+
         form.onsubmit = async (e) => {
             e.preventDefault();
             submitBtn.disabled = true;
@@ -187,6 +195,14 @@ Content-Type: application/json
                 const poll = setInterval(async () => {
                     try {
                         const check = await fetch(`/status/${data.job_id}`);
+                        
+                        // Check if network failed
+                        if (!check.ok) {
+                            clearInterval(poll);
+                            showError("Network error polling status");
+                            return;
+                        }
+
                         const result = await check.json();
                         
                         if (result.status === 'completed') {
@@ -219,18 +235,17 @@ Content-Type: application/json
                             `;
                         } else if (result.status === 'failed') {
                             clearInterval(poll);
-                            throw new Error(result.data?.error || "Worker failed");
+                            // --- FIX: Explicitly call showError ---
+                            showError(result.data?.error || "Worker processing failed");
                         }
                     } catch (e) {
                         clearInterval(poll);
-                        throw e;
+                        showError(e.message);
                     }
                 }, 2000);
 
             } catch (err) {
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Get Quote";
-                statusText.innerHTML = `<span style="color:red">❌ Error: ${err.message}</span>`;
+                showError(err.message);
             }
         };
     </script>
