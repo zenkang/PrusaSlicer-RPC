@@ -50,6 +50,7 @@ temp/
 worker/worker_old.py
 worker/old_fastapi_dockerfile.md
 worker/dockerfile_old.md
+worker/quotation_engine_old.py
 
 # PrusaSlicer
 prusaslicer/
@@ -69,3 +70,5 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+intern/

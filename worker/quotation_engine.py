@@ -105,47 +105,60 @@ class QuotationEngine:
     
     def check_mesh_validity(self, stl_file: str) -> Tuple[bool, str]:
         """
-        Check if STL mesh is valid (watertight, consistent winding, positive volume, dimensions)
-        Returns: (is_valid, message)
+        Check dimensions but ALLOW non-watertight meshes (PrusaSlicer handles them).
         """
-        # print(f"🔍 Checking mesh validity...")
-        
         try:
             mesh = trimesh.load_mesh(stl_file)
             
-            # Check dimensions (600mm x 600mm x 600mm max build volume)
-            bounds = mesh.bounds  # Returns [[min_x, min_y, min_z], [max_x, max_y, max_z]]
-            dimensions = bounds[1] - bounds[0]  # [width, depth, height]
+            # Check dimensions (500mm limit)
+            bounds = mesh.bounds
+            dimensions = bounds[1] - bounds[0]
             max_dimension = 500.0
             
             if any(dim > max_dimension for dim in dimensions):
-                return False, f"Model too large: {dimensions[0]:.1f}mm × {dimensions[1]:.1f}mm × {dimensions[2]:.1f}mm. Max: {max_dimension}mm × {max_dimension}mm × {max_dimension}mm"
+                return False, f"Model too large: {dimensions[0]:.1f}x{dimensions[1]:.1f}x{dimensions[2]:.1f}mm"
             
-            # Check mesh quality
-            is_winding_consistent = mesh.is_winding_consistent
-            is_watertight = mesh.is_watertight
-            has_volume = mesh.volume > 0
+            # RELAXED VALIDATION: We return True even if not watertight
+            # because PrusaSlicer is very good at repairing bad meshes.
+            if not mesh.is_watertight:
+                print("⚠️ Warning: Mesh is not watertight (proceeding anyway)")
             
-            if is_winding_consistent and is_watertight and has_volume:
-                # print(f"✅ Mesh is valid (volume: {mesh.volume:.2f} mm³)")
-                return True, "Mesh is valid"
-            else:
-                issues = []
-                if not is_winding_consistent:
-                    issues.append("inconsistent winding")
-                if not is_watertight:
-                    issues.append("not watertight")
-                if not has_volume:
-                    issues.append("no volume")
-                
-                error_msg = f"Mesh validation failed: {', '.join(issues)}"
-                # print(f"❌ {error_msg}")
-                return False, error_msg
+            return True, "Mesh valid (or repairable)"
                 
         except Exception as e:
-            error_msg = f"Mesh validation error: {str(e)}"
-            # print(f"❌ {error_msg}")
-            return False, error_msg
+            return False, f"Mesh load error: {str(e)}"
+
+    def center_and_ground_model(self, stl_file: str) -> str:
+        """
+        Centers the mesh on X/Y (100,100) and places Z on 0.
+        This prevents 'No layers detected' errors for models saved far from origin.
+        """
+        try:
+            print(f"🎯 Centering and grounding model: {stl_file}")
+            mesh = trimesh.load_mesh(stl_file)
+            
+            # 1. Ground Z (Move bottom to Z=0)
+            min_z = mesh.bounds[0][2]
+            mesh.apply_translation([0, 0, -min_z])
+            
+            # 2. Center XY (Move center to 100,100 - approx center of standard beds)
+            # Calculate current center
+            center = mesh.centroid
+            # Target center (Prusa MK3 is ~250x210, so 125,105 is center. 100,100 is safe)
+            target = [100, 100] 
+            
+            # Translation vector
+            x_move = target[0] - center[0]
+            y_move = target[1] - center[1]
+            
+            mesh.apply_translation([x_move, y_move, 0])
+            
+            # Overwrite the file with centered mesh
+            mesh.export(stl_file)
+            return stl_file
+        except Exception as e:
+            print(f"⚠️ Failed to center model: {e}")
+            return stl_file
     
     def orient_stl_with_tweaker3(self, stl_file: str, job_id: str) -> Tuple[Optional[str], str, Dict]:
         """
@@ -580,9 +593,11 @@ class QuotationEngine:
         
         complexity = orientation_data.get("complexity", "medium")
         print(f"📊 Model complexity: {complexity}")
+        # CENTER & GROUND (Crucial for fixing 'No Layers')
+        final_stl = self.center_and_ground_model(oriented_stl)
         
         # Step 4: Slice model
-        slicing_data = self.slice_model(oriented_stl, job_id, material, layer_height, infill)
+        slicing_data = self.slice_model(final_stl, job_id, material, layer_height, infill)
         
         if slicing_data.get("error") is not None:
             return {
